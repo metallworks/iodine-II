@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>iodineAi</title>
+<link rel="stylesheet" href="app.css">
+<style>
+  .chat {
+    position: absolute;
+    top: 86px; left: 0; right: 290px; bottom: 70px;
+    display: flex; flex-direction: column;
+    text-shadow: none;
+  }
+  .log { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; scrollbar-width: thin; }
+  .msg { max-width: 78%; padding: 10px 13px; border-radius: 12px; font-size: 15px; line-height: 1.45; white-space: pre-wrap; word-wrap: break-word; }
+  .msg.me { align-self: flex-end; background: var(--accent); border-bottom-right-radius: 4px; }
+  .msg.ai { align-self: flex-start; background: rgba(255,255,255,.13); border: 1px solid rgba(255,255,255,.12); border-bottom-left-radius: 4px; }
+  .msg.ai code { background: rgba(0,0,0,.35); padding: 1px 5px; border-radius: 4px; font-family: ui-monospace, monospace; font-size: 13px; }
+  .msg.ai pre { background: rgba(0,0,0,.4); padding: 10px; border-radius: 8px; overflow-x: auto; white-space: pre; margin: 6px 0; }
+  .msg.ai pre code { background: none; padding: 0; }
+  .msg.err { align-self: flex-start; background: rgba(255,59,48,.18); border: 1px solid rgba(255,59,48,.4); }
+  .typing span { display: inline-block; width: 7px; height: 7px; margin: 0 2px; border-radius: 50%; background: #fff; opacity: .4; animation: blink 1s infinite; }
+  .typing span:nth-child(2) { animation-delay: .15s; } .typing span:nth-child(3) { animation-delay: .3s; }
+  @keyframes blink { 50% { opacity: 1; } }
+  .ask { display: flex; gap: 8px; padding: 12px; border-top: 1px solid rgba(255,255,255,.1); }
+  .ask textarea { flex: 1; resize: none; height: 46px; max-height: 140px; font-size: 15px; }
+  .hello { color: rgba(255,255,255,.75); font-size: 14px; padding: 4px 2px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chips .btn { font-size: 13px; padding: 6px 10px; }
+  @media (max-width: 800px) { .chat { right: 0; } }
+</style>
+</head>
+<body>
+<img class="top-right-center" src="Iodine.png" alt="">
+<div class="bg-img"></div>
+<div class="content" style="overflow:hidden">
+  <h1>iodineAi</h1>
+  <p>Ask it anything. It doesn't remember anything once you leave this page.</p>
+
+  <div class="chat panel">
+    <div class="log" id="log">
+      <div class="hello">Hi, I'm iodineAi. Try one of these, or type your own:
+        <div class="chips">
+          <button class="btn chip">Explain photosynthesis simply</button>
+          <button class="btn chip">Give me a fun fact</button>
+          <button class="btn chip">Help me start an essay about the ocean</button>
+          <button class="btn chip">What game should I play?</button>
+        </div>
+      </div>
+    </div>
+    <form class="ask" id="ask">
+      <textarea class="field" id="input" placeholder="Message iodineAi... (Enter sends, Shift+Enter for a new line)" aria-label="Message"></textarea>
+      <button class="btn primary" id="send" type="submit">Send</button>
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---------------------------------------------------------------- routes
+     The old iodineAi used one private server that stopped answering,
+     which is why it only worked "50/50". This one has three ways to
+     answer and uses the first that works:
+
+       1. YOUR KEY, if you fill in OWNER below (OpenRouter, Groq and
+          OpenAI all work - anything "OpenAI-compatible"). Put a spend
+          limit on it: anyone can read this file.
+       2. A FREE SERVICE, no key. Free services come and go - this one
+          started refusing some browsers in 2026 - so it is not relied on.
+       3. ON THE DEVICE. A small model downloads once (about 400 MB) and
+          runs inside the browser. Asks first, because that is big. Needs
+          Chrome or Edge (WebGPU). After that nothing can block it.       */
+  var OWNER = {
+    endpoint: '',          /* e.g. 'https://openrouter.ai/api/v1/chat/completions' */
+    key: '',
+    model: 'meta-llama/llama-3.3-70b-instruct:free'
+  };
+  var ENDPOINT = 'https://text.pollinations.ai/openai';
+  var WEBLLM_URL = 'https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.79/+esm';
+  var LOCAL_MODEL = 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC';
+  var SYSTEM = 'You are iodineAi, a friendly assistant inside Iodine 2.2, a website students use. ' +
+               'Keep answers short and clear unless asked for detail. Use simple language. ' +
+               'For homework, explain how to get the answer rather than only giving it.';
+
+  var log = document.getElementById('log');
+  var input = document.getElementById('input');
+  var send = document.getElementById('send');
+  var history = [];
+  var busy = false;
+
+  function esc(s) { return s.replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  /* Just enough formatting: code blocks, `code`, **bold**. Everything is
+     escaped first, so nothing the AI says can run as code on this page. */
+  function format(text) {
+    var out = esc(text);
+    out = out.replace(/```[a-z0-9]*\n?([\s\S]*?)```/gi, function (_, code) { return '<pre><code>' + code + '</code></pre>'; });
+    out = out.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+    out = out.replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>');
+    return out;
+  }
+
+  function add(kind, text) {
+    var d = document.createElement('div');
+    d.className = 'msg ' + kind;
+    if (kind === 'ai') d.innerHTML = format(text); else d.textContent = text;
+    log.appendChild(d);
+    log.scrollTop = log.scrollHeight;
+    return d;
+  }
+
+  function typing() {
+    var d = document.createElement('div');
+    d.className = 'msg ai typing';
+    d.innerHTML = '<span></span><span></span><span></span>';
+    log.appendChild(d);
+    log.scrollTop = log.scrollHeight;
+    return d;
+  }
+
+  function withTimeout(ms) {
+    var ctl = window.AbortController ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ctl) ctl.abort(); }, ms);
+    return { signal: ctl ? ctl.signal : undefined, done: function () { clearTimeout(timer); } };
+  }
+  function messages() { return [{ role: 'system', content: SYSTEM }].concat(history.slice(-12)); }
+  function readReply(text) {
+    var reply = '';
+    try {
+      var j = JSON.parse(text);
+      reply = (((j.choices || [])[0] || {}).message || {}).content || '';
+    } catch (e) { reply = text; }
+    reply = String(reply || '').trim();
+    if (!reply || /turnstile|api key|budget|unauthori[sz]ed/i.test(reply.slice(0, 200))) throw new Error('no answer');
+    return reply;
+  }
+
+  function askOwner() {
+    if (!OWNER.endpoint || !OWNER.key) return Promise.reject(new Error('no key set'));
+    var t = withTimeout(45000);
+    return fetch(OWNER.endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + OWNER.key },
+      body: JSON.stringify({ model: OWNER.model, messages: messages() }),
+      signal: t.signal
+    }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+      .then(function (x) { t.done(); return readReply(x); }, function (e) { t.done(); throw e; });
+  }
+
+  function askFree() {
+    var t = withTimeout(30000);
+    return fetch(ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'openai', messages: messages(), private: true }),
+      signal: t.signal
+    }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+      .then(function (x) { t.done(); return readReply(x); }, function (e) { t.done(); throw e; });
+  }
+
+  var local = { engine: null, loading: null, allowed: false };
+  function loadLocal(onProgress) {
+    if (local.engine) return Promise.resolve(local.engine);
+    if (local.loading) return local.loading;
+    if (!navigator.gpu) {
+      return Promise.reject(new Error('This browser can’t run the on-device model (it needs WebGPU: Chrome or Edge).'));
+    }
+    local.loading = import(WEBLLM_URL).then(function (mod) {
+      return mod.CreateMLCEngine(LOCAL_MODEL, {
+        initProgressCallback: function (p) { if (onProgress) onProgress((p && p.text) || ''); }
+      });
+    }).then(function (engine) {
+      local.engine = engine;
+      local.loading = null;
+      try { localStorage.setItem('iodine22_ai_local', '1'); } catch (e) {}
+      return engine;
+    }, function (err) { local.loading = null; throw err; });
+    return local.loading;
+  }
+  function askLocal(onProgress) {
+    return loadLocal(onProgress).then(function (engine) {
+      return engine.chat.completions.create({ messages: messages() });
+    }).then(function (res) {
+      return String(((res.choices || [])[0] || {}).message && res.choices[0].message.content || '').trim();
+    });
+  }
+  /* Once someone has downloaded the model, it is on their computer, so
+     later visits can go straight to it without asking again. */
+  try { local.allowed = localStorage.getItem('iodine22_ai_local') === '1'; } catch (e) {}
+
+  function ask(question, onProgress, localOnly) {
+    if (localOnly) return askLocal(onProgress);
+    return askOwner().catch(askFree).catch(function () {
+      if (local.allowed || local.engine) return askLocal(onProgress);
+      var e = new Error('need-local');
+      throw e;
+    });
+  }
+
+  function offerLocal(question) {
+    var d = document.createElement('div');
+    d.className = 'msg ai';
+    d.innerHTML = 'The free AI service didn’t answer (it may be blocked or busy). ' +
+      'iodineAi can run <b>on your computer</b> instead: a small model downloads once, about 400 MB, ' +
+      'then works even if every AI site is blocked. Needs Chrome or Edge.' +
+      '<div class="chips"><button class="btn primary">Download it and answer</button><button class="btn">Not now</button></div>';
+    log.appendChild(d);
+    log.scrollTop = log.scrollHeight;
+    var btns = d.querySelectorAll('button');
+    btns[1].addEventListener('click', function () { d.remove(); });
+    btns[0].addEventListener('click', function () {
+      d.remove();
+      local.allowed = true;
+      history.push({ role: 'user', content: question });
+      run(question, true);
+    });
+  }
+
+  function run(text, localOnly) {
+    busy = true;
+    send.disabled = true;
+    var dots = typing();
+    var progress = null;
+    function onProgress(t) {
+      if (!progress) { progress = add('ai', ''); progress.classList.add('typing-text'); }
+      progress.textContent = 'Setting up the on-device model: ' + t;
+      log.scrollTop = log.scrollHeight;
+    }
+    ask(text, onProgress, localOnly).then(function (answer) {
+      dots.remove();
+      if (progress) progress.remove();
+      add('ai', answer);
+      history.push({ role: 'assistant', content: answer });
+    }).catch(function (err) {
+      dots.remove();
+      if (progress) progress.remove();
+      history.pop();
+      if (err && err.message === 'need-local') { offerLocal(text); return; }
+      var m = (err && err.message) || '';
+      add('err', /GPU/i.test(m)
+        ? 'This computer can’t run the on-device model (it needs WebGPU: Chrome or Edge on a computer with graphics support). The free service might be back later.'
+        : 'iodineAi couldn’t answer just now. Try again in a moment.');
+    }).then(function () {
+      busy = false;
+      send.disabled = false;
+      input.focus();
+    });
+  }
+
+  function submit(text) {
+    text = (text || '').trim();
+    if (!text || busy) return;
+    input.value = '';
+    var hello = log.querySelector('.hello');
+    if (hello) hello.remove();
+    add('me', text);
+    history.push({ role: 'user', content: text });
+    run(text);
+  }
+
+  document.getElementById('ask').addEventListener('submit', function (e) { e.preventDefault(); submit(input.value); });
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(input.value); }
+  });
+  input.addEventListener('input', function () {
+    input.style.height = '46px';
+    input.style.height = Math.min(140, input.scrollHeight) + 'px';
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('.chip'), function (b) {
+    b.addEventListener('click', function () { submit(b.textContent); });
+  });
+  input.focus();
+})();
+</script>
+</body>
+</html>

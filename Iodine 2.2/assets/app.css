@@ -1,0 +1,141 @@
+/* Iodine 2.2 - the look every app page shares (it used to be copied
+   into each page by hand). */
+@font-face {
+  font-family: 'Canva Sans';
+  src: url('CanvaSans-Regular.otf') format('opentype');
+}
+
+:root { --accent: #cc6ce7; }
+
+* { box-sizing: border-box; }
+
+body, html {
+  height: 100%;
+  margin: 0;
+  font-family: 'Canva Sans', system-ui, sans-serif;
+  color: #fff;
+}
+
+.bg-img {
+  position: fixed;
+  inset: -10px;
+  background: #0b0713 url('background.gif') center / cover no-repeat;
+  filter: blur(8px);
+  z-index: -1;
+}
+
+.top-right-center {
+  position: absolute;
+  top: 18px;
+  right: 25px;
+  width: 250px;
+  pointer-events: none;
+}
+
+.content {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  right: 20px;
+  bottom: 0;
+  padding-bottom: 70px;             /* room for the taskbar */
+  overflow-y: auto;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+  scrollbar-width: thin;
+}
+.content h1 { margin: 0 0 6px; font-weight: normal; font-size: 34px; }
+.content > p { margin: 0; color: rgba(255, 255, 255, 0.85); max-width: calc(100% - 290px); }
+
+.grid-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+  margin-top: 30px;
+}
+
+.game-link { text-decoration: none; color: inherit; display: block; cursor: pointer; }
+
+.game-box {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+  height: 100%;
+}
+.game-link:hover .game-box, .game-link:focus-visible .game-box {
+  transform: translateY(-5px);
+  border-color: rgba(255, 255, 255, 0.6);
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.4), 0 8px 16px rgba(0, 0, 0, 0.4);
+}
+.game-link:focus-visible { outline: none; }
+.game-box img, .game-box .thumb {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 4px;
+  background-color: rgba(255, 255, 255, 0.2);
+  display: block;
+}
+.game-box .title { margin-top: 12px; font-size: 16px; font-weight: bold; }
+.game-box .caption { margin-top: 4px; font-size: 13px; color: rgba(255, 255, 255, 0.75); }
+.badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: normal;
+  vertical-align: 2px;
+  text-shadow: none;
+}
+
+/* Glass panels and controls */
+.panel {
+  background: rgba(18, 18, 24, 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  text-shadow: none;
+}
+
+.btn {
+  font: inherit;
+  font-size: 14px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  padding: 9px 14px;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+.btn:hover { background: rgba(255, 255, 255, 0.26); border-color: rgba(255, 255, 255, 0.4); }
+.btn.primary { background: var(--accent); border-color: var(--accent); }
+.btn.primary:hover { filter: brightness(1.1); }
+
+.field {
+  font: inherit;
+  font-size: 14px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  padding: 10px 12px;
+  outline: none;
+}
+.field:focus { border-color: var(--accent); }
+.field::placeholder { color: rgba(255, 255, 255, 0.45); }
+select.field option { color: #000; }
+
+@media (max-width: 800px) {
+  .top-right-center { display: none; }
+  .content > p { max-width: none; }
+}

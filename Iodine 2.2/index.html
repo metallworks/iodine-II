@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iodine II</title>
+    <link rel="icon" type="image/png" href="assets/Iodine.png" id="favicon">
+    <style>
+        /* Iodine 2.2 - the desktop. Every app opens in the one frame in the
+           middle; the taskbar picks which. */
+
+        /* Where "Upgrade to Iodine 3" sends people is IODINE3_URL, at the
+           top of the script at the bottom of this file. */
+        :root {
+            --accent: #cc6ce7;
+            --glass: rgba(18, 18, 24, 0.65);
+            --glass-edge: rgba(255, 255, 255, 0.1);
+        }
+
+        @font-face {
+            font-family: 'Canva Sans';
+            src: url('assets/CanvaSans-Regular.otf') format('opentype');
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            font-family: system-ui, -apple-system, sans-serif;
+            background: url('assets/background.gif') no-repeat center center / cover;
+            background-color: #0b0713;
+            position: relative;
+        }
+
+        /* ------------------------------------------------ top right: logo + update log */
+        .logo {
+            position: absolute;
+            top: 18px;
+            right: 25px;
+            width: 250px;
+            z-index: 20;
+            pointer-events: none;
+        }
+
+        .update-log {
+            position: absolute;
+            top: 92px;
+            right: 25px;
+            width: 250px;
+            max-height: calc(100vh - 160px);
+            overflow-y: auto;
+            padding: 16px 16px 14px;
+            border-radius: 12px;
+            background: rgba(70, 70, 78, 0.55);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: #fff;
+            font-family: 'Canva Sans', system-ui, sans-serif;
+            text-align: right;
+            z-index: 10;
+            scrollbar-width: thin;
+        }
+        .update-log .version { font-size: 19px; }
+        .update-log .version b { color: var(--accent); font-weight: normal; }
+        .update-log h2 { font-size: 31px; font-weight: normal; line-height: 1.1; margin: 2px 0 16px; }
+        .update-log h3 { font-size: 18px; font-weight: normal; margin: 12px 0 6px; }
+        .update-log h3 b { color: var(--accent); font-weight: normal; }
+        .update-log p { font-size: 13.5px; line-height: 1.4; }
+        .update-log .hl { color: var(--accent); }
+        .update-log hr { border: none; border-top: 1px dashed rgba(255,255,255,0.6); margin: 10px 0; }
+        .update-log ul { list-style: none; font-size: 13px; line-height: 1.45; }
+        .update-log li::after { content: ' \2022'; color: var(--accent); }
+        .update-log .small { font-size: 12px; color: #e3b5f3; }
+
+        /* ------------------------------------------------ ad boxes (homepage only) */
+        .ad-space {
+            background: rgba(18, 18, 24, 0.45);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 13px;
+            font-weight: 500;
+            text-align: center;
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            pointer-events: none;
+        }
+        .home-ads { position: absolute; top: 15px; left: 25px; right: 300px; bottom: 65px; z-index: 5; }
+        .ad-wide { position: absolute; top: 0; left: 0; right: 0; height: 90px; }
+        .ad-tall { position: absolute; top: 105px; left: 0; width: 130px; bottom: 0; }
+
+        /* ------------------------------------------------ the app frame */
+        .desktop { position: absolute; inset: 0; z-index: 1; }
+        #app-viewport { width: 100%; height: 100%; border: 0; display: none; background: transparent; }
+
+        /* ------------------------------------------------ taskbar */
+        .taskbar-container { position: fixed; bottom: 12.5px; left: 12.5px; z-index: 9999; }
+        .status-container {
+            position: fixed;
+            bottom: 12.5px;
+            right: 25px;
+            z-index: 9999;
+            gap: 8px;
+            padding: 0 6px 0 6px;
+            color: #fff;
+            font-weight: 500;
+            font-size: 13px;
+        }
+        .taskbar, .status-container {
+            height: 36px;
+            background: var(--glass);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-edge);
+            border-radius: 13px;
+            display: flex;
+            align-items: center;
+        }
+        .taskbar { gap: 6px; padding: 0 5px; }
+
+        .nav-btn {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: 1px solid transparent;
+            cursor: pointer;
+            padding: 0 6px;
+            border-radius: 8px;
+            height: 26px;
+            min-width: 26px;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            color: #fff;
+        }
+        .nav-btn img, .nav-btn svg { width: 17.8px; height: 17.8px; object-fit: contain; flex: none; }
+        .nav-btn .tab-text {
+            max-width: 0;
+            opacity: 0;
+            overflow: hidden;
+            white-space: nowrap;
+            transition: max-width 0.3s ease, opacity 0.2s ease, margin 0.3s ease;
+            font-size: 10.6px;
+            font-weight: 500;
+        }
+        .nav-btn:hover { background: rgba(255, 255, 255, 0.08); }
+        .nav-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+        .nav-btn.active {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.2);
+            padding: 0 13px;
+        }
+        .nav-btn.active .tab-text { max-width: 90px; opacity: 1; margin-left: 6px; }
+
+        /* The preview the welcome text promises: hover an icon, see what it is. */
+        .preview {
+            position: fixed;
+            bottom: 58px;
+            left: 0;
+            width: 220px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            background: rgba(18, 18, 24, 0.82);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-edge);
+            color: #fff;
+            font-family: 'Canva Sans', system-ui, sans-serif;
+            z-index: 10000;
+            opacity: 0;
+            transform: translateY(6px);
+            transition: opacity 0.15s ease, transform 0.15s ease;
+            pointer-events: none;
+        }
+        .preview.show { opacity: 1; transform: translateY(0); }
+        .preview .p-title { font-size: 14px; }
+        .preview .p-title b { color: var(--accent); font-weight: normal; }
+        .preview .p-text { font-size: 12px; color: rgba(255,255,255,0.72); margin-top: 3px; line-height: 1.35; }
+
+        .battery-pill {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #4cd964;
+            color: #000;
+            font-weight: bold;
+            font-size: 9.3px;
+            padding: 2px 5px;
+            border-radius: 5px;
+            min-width: 31px;
+            transition: background-color 0.5s ease;
+        }
+        #clock-display { padding-right: 7px; }
+
+        .upgrade-pill {
+            border: 1px solid rgba(255, 196, 77, 0.55);
+            background: rgba(255, 176, 32, 0.16);
+            color: #ffd27a;
+            font: 600 10.5px system-ui, sans-serif;
+            height: 24px;
+            padding: 0 9px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+        .upgrade-pill:hover { background: rgba(255, 176, 32, 0.3); }
+
+        /* ------------------------------------------------ "upgrade to iodine 3" */
+        .upgrade-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 20000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(5, 3, 10, 0.55);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s ease;
+        }
+        .upgrade-backdrop.show { opacity: 1; pointer-events: auto; }
+        .upgrade-card {
+            position: relative;
+            width: min(440px, calc(100vw - 32px));
+            padding: 26px 26px 20px;
+            border-radius: 16px;
+            background: rgba(22, 22, 28, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+            color: #fff;
+            font-family: 'Canva Sans', system-ui, sans-serif;
+            text-align: center;
+            transform: translateY(12px) scale(0.98);
+            transition: transform 0.25s ease;
+        }
+        .upgrade-backdrop.show .upgrade-card { transform: none; }
+        .upgrade-card img { width: 230px; max-width: 80%; display: block; margin: 4px auto 14px; }
+        .upgrade-card h2 { font-size: 26px; font-weight: normal; margin-bottom: 8px; }
+        .upgrade-card p { font-size: 14px; line-height: 1.5; color: rgba(255,255,255,0.78); }
+        .upgrade-card ul {
+            list-style: none;
+            margin: 14px 0 18px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+            font-size: 12.5px;
+            text-align: left;
+        }
+        .upgrade-card li {
+            padding: 7px 9px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+        }
+        .upgrade-card li::before { content: '\2726  '; color: #ffc44d; }
+        .upgrade-go {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #ffcf5c, #f2a51a);
+            color: #2a1a00;
+            font: 700 15px system-ui, sans-serif;
+            cursor: pointer;
+            text-decoration: none;
+            transition: filter 0.2s ease, transform 0.2s ease;
+        }
+        .upgrade-go:hover { filter: brightness(1.07); transform: translateY(-1px); }
+        .upgrade-later {
+            margin-top: 10px;
+            background: none;
+            border: none;
+            color: rgba(255,255,255,0.7);
+            font: 500 13px system-ui, sans-serif;
+            cursor: pointer;
+            padding: 6px 10px;
+        }
+        .upgrade-later:hover { color: #fff; text-decoration: underline; }
+        .upgrade-never {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            margin-top: 4px;
+            font: 12px system-ui, sans-serif;
+            color: rgba(255,255,255,0.5);
+            cursor: pointer;
+        }
+        .upgrade-x {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            border: none;
+            background: rgba(255,255,255,0.08);
+            color: #fff;
+            font-size: 18px;
+            line-height: 1;
+            cursor: pointer;
+        }
+        .upgrade-x:hover { background: rgba(255,255,255,0.18); }
+
+        @media (max-width: 900px) {
+            .home-ads { display: none !important; }
+        }
+    </style>
+</head>
+
+<body>
+
+    <img class="logo" src="assets/Iodine.png" alt="iodine II">
+
+    <!-- The update log. This is the text that used to be a picture
+         (Update1.png) - it is real text now, so it can be fixed without
+         opening an image editor. -->
+    <section class="update-log" id="welcome-container" aria-label="Update log">
+        <div class="version">Update <b>2.2</b></div>
+        <h2>The last<br>2.x update.</h2>
+
+        <h3>how to use <b>iodine</b></h3>
+        <p>On the <span class="hl">taskbar</span> at the bottom, pick the icon for what you want.
+           Hover over an icon to see a preview of it.</p>
+
+        <hr>
+        <h3>what's <b>new</b></h3>
+        <ul>
+            <li>Movies and TV play now</li>
+            <li>New Game Library, 2,800 games</li>
+            <li>iodineAi rebuilt</li>
+            <li>Settings: tab disguise, panic key</li>
+            <li>Taskbar hover previews</li>
+            <li>Typos and layout fixed</li>
+        </ul>
+
+        <hr>
+        <p class="small">Ads may show up in the boxes on this page. Never pop-ups, never mid-game.</p>
+    </section>
+
+    <div id="homepage-ads" class="home-ads">
+        <div class="ad-space ad-wide">Lucky you! No ads right now</div>
+        <div class="ad-space ad-tall">Lucky you!<br>No ads right now</div>
+    </div>
+
+    <div class="desktop">
+        <iframe id="app-viewport" title="Iodine app" allow="fullscreen; autoplay; clipboard-write; gamepad"></iframe>
+    </div>
+
+    <div class="taskbar-container">
+        <nav class="taskbar" aria-label="Taskbar">
+            <button class="nav-btn active" data-app="welcome" data-desc="The homepage, with the update log.">
+                <img src="assets/welcome.png" alt=""><span class="tab-text">Welcome</span>
+            </button>
+            <button class="nav-btn" data-app="assets/games.html" data-desc="The new Game Library, Old Reliable, and the way to Iodine 3's libraries.">
+                <img src="assets/games.png" alt=""><span class="tab-text">Games</span>
+            </button>
+            <button class="nav-btn" data-app="assets/apps.html" data-desc="iodineAi and NautilusOS.">
+                <img src="assets/apps.png" alt=""><span class="tab-text">Apps</span>
+            </button>
+            <button class="nav-btn" data-app="assets/movies.html" data-desc="Paste a movie's IMDb ID and watch.">
+                <img src="assets/movies.png" alt=""><span class="tab-text">Movies</span>
+            </button>
+            <button class="nav-btn" data-app="assets/tv.html" data-desc="Same as Movies, plus season and episode.">
+                <img src="assets/tv.png" alt=""><span class="tab-text">TV</span>
+            </button>
+            <button class="nav-btn" data-app="assets/proxy.html" data-desc="Helios, Sandstone and Corrosion, with fullscreen.">
+                <img src="assets/proxy.png" alt=""><span class="tab-text">Proxy</span>
+            </button>
+            <button class="nav-btn" data-app="assets/settings.html" data-desc="Tab disguise, panic key, about:blank, clock.">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                <span class="tab-text">Settings</span>
+            </button>
+        </nav>
+    </div>
+
+    <div class="preview" id="preview" aria-hidden="true">
+        <div class="p-title" id="preview-title"></div>
+        <div class="p-text" id="preview-text"></div>
+    </div>
+
+    <div class="status-container">
+        <button class="upgrade-pill" id="upgrade-pill" title="Iodine 3 is out">Iodine 3 &#8599;</button>
+        <div id="battery-display" class="battery-pill">--%</div>
+        <div id="clock-display">--:--</div>
+    </div>
+
+    <!-- "Upgrade to Iodine 3". Click the X, "Maybe later", the dark area
+         around it, or press Esc to close it. -->
+    <div class="upgrade-backdrop" id="upgrade" role="dialog" aria-modal="true" aria-labelledby="upgrade-title">
+        <div class="upgrade-card">
+            <button class="upgrade-x" id="upgrade-x" aria-label="Close">&times;</button>
+            <img src="assets/iodine3.png" alt="iodine III">
+            <h2 id="upgrade-title">Upgrade to Iodine 3</h2>
+            <p>Iodine 3 is out, and it's a much bigger update than this one.</p>
+            <ul>
+                <li>7 game libraries</li>
+                <li>IDN chat and DMs</li>
+                <li>Cloud game saves</li>
+                <li>Music and videos</li>
+                <li>Real proxies</li>
+                <li>Retro consoles</li>
+            </ul>
+            <a class="upgrade-go" id="upgrade-go" href="#" target="_blank" rel="noopener">Upgrade to Iodine 3</a>
+            <button class="upgrade-later" id="upgrade-later">Maybe later, stay on 2.2</button>
+            <label class="upgrade-never"><input type="checkbox" id="upgrade-never"> Don't show this again</label>
+        </div>
+    </div>
+
+    <script>
+    (function () {
+        'use strict';
+
+        /* ------------------------------------------------------------ settings */
+        var IODINE3_URL = 'https://uiwrwedby83.wasmer.app/';
+        window.IODINE3_URL = IODINE3_URL;
+
+        function load(key, fallback) {
+            try {
+                var raw = localStorage.getItem('iodine22_' + key);
+                return raw === null ? fallback : JSON.parse(raw);
+            } catch (e) { return fallback; }
+        }
+        function save(key, value) {
+            try { localStorage.setItem('iodine22_' + key, JSON.stringify(value)); } catch (e) {}
+        }
+
+        var settings = load('settings', {});
+        function setting(name, fallback) { return settings[name] === undefined ? fallback : settings[name]; }
+
+        /* ------------------------------------------------------------ taskbar */
+        var buttons = document.querySelectorAll('.nav-btn');
+        var viewport = document.getElementById('app-viewport');
+        var welcome = document.getElementById('welcome-container');
+        var logo = document.querySelector('.logo');
+        var ads = document.getElementById('homepage-ads');
+
+        function open(app) {
+            buttons.forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-app') === app); });
+            var home = app === 'welcome';
+            welcome.style.display = home ? '' : 'none';
+            logo.style.display = home ? '' : 'none';
+            ads.style.display = home ? '' : 'none';
+            if (home) {
+                viewport.style.display = 'none';
+                viewport.src = 'about:blank';
+            } else {
+                viewport.src = app;
+                viewport.style.display = 'block';
+            }
+        }
+        window.iodineOpen = open;
+
+        buttons.forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                if (btn.classList.contains('active')) return;
+                open(btn.getAttribute('data-app'));
+            });
+        });
+
+        /* Hover preview. */
+        var preview = document.getElementById('preview');
+        var pTitle = document.getElementById('preview-title');
+        var pText = document.getElementById('preview-text');
+        var hideTimer = null;
+        buttons.forEach(function (btn) {
+            btn.addEventListener('mouseenter', function () {
+                clearTimeout(hideTimer);
+                var name = btn.querySelector('.tab-text').textContent;
+                pTitle.innerHTML = '';
+                var b = document.createElement('b');
+                b.textContent = name;
+                pTitle.appendChild(b);
+                pText.textContent = btn.getAttribute('data-desc') || '';
+                var r = btn.getBoundingClientRect();
+                preview.style.left = Math.max(8, Math.min(window.innerWidth - 228, r.left + r.width / 2 - 110)) + 'px';
+                preview.classList.add('show');
+            });
+            btn.addEventListener('mouseleave', function () {
+                hideTimer = setTimeout(function () { preview.classList.remove('show'); }, 80);
+            });
+        });
+
+        /* ------------------------------------------------------------ clock + battery */
+        function updateClock() {
+            var now = new Date();
+            var h = now.getHours();
+            var m = String(now.getMinutes()).padStart(2, '0');
+            var text;
+            if (setting('clock24', false)) {
+                text = String(h).padStart(2, '0') + ':' + m;
+            } else {
+                text = (h % 12 || 12) + ':' + m;
+            }
+            document.getElementById('clock-display').textContent = text;
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        var pill = document.getElementById('battery-display');
+        if (navigator.getBattery) {
+            navigator.getBattery().then(function (battery) {
+                function updateBattery() {
+                    var level = Math.round(battery.level * 100);
+                    pill.textContent = level + '%';
+                    pill.title = battery.charging ? 'Charging' : '';
+                    if (battery.charging) pill.style.backgroundColor = '#34aadc';
+                    else if (level <= 20) pill.style.backgroundColor = '#ff3b30';
+                    else if (level <= 50) pill.style.backgroundColor = '#ffcc00';
+                    else pill.style.backgroundColor = '#4cd964';
+                }
+                updateBattery();
+                battery.addEventListener('levelchange', updateBattery);
+                battery.addEventListener('chargingchange', updateBattery);
+            }).catch(function () { pill.style.display = 'none'; });
+        } else {
+            pill.style.display = 'none';           /* better nothing than a made-up 100% */
+        }
+
+        /* ------------------------------------------------------------ tab disguise */
+        var realTitle = document.title;
+        var favicon = document.getElementById('favicon');
+        var realIcon = favicon.href;
+        /* A plain grey page icon - no real company's logo. */
+        var PLAIN_ICON = 'data:image/svg+xml,' + encodeURIComponent(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect x="6" y="3" width="20" height="26" rx="3" fill="#8a8f98"/>' +
+            '<rect x="10" y="10" width="12" height="2" fill="#fff"/><rect x="10" y="15" width="12" height="2" fill="#fff"/><rect x="10" y="20" width="8" height="2" fill="#fff"/></svg>');
+
+        function applyCloak() {
+            var title = setting('cloakTitle', '');
+            document.title = title || realTitle;
+            favicon.href = title ? PLAIN_ICON : realIcon;
+        }
+
+        /* ------------------------------------------------------------ panic key */
+        function panic(e) {
+            var key = setting('panicKey', '');
+            if (!key || e.key !== key) return;
+            var t = e.target;
+            if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+            e.preventDefault();
+            var url = setting('panicUrl', 'https://classroom.google.com');
+            try { window.top.location.replace(url); } catch (err) { window.location.replace(url); }
+        }
+        document.addEventListener('keydown', panic);
+
+        /* Keys pressed inside an app go to the app's page, not this one, so
+           the panic key is listened for in there too (and in any frames the
+           app has, like a game inside the Game Library). */
+        function hookFrame(win) {
+            try {
+                if (!win || win.__iodinePanic) return;
+                win.__iodinePanic = true;
+                win.document.addEventListener('keydown', panic);
+                var inner = win.document.querySelectorAll('iframe');
+                for (var i = 0; i < inner.length; i++) {
+                    inner[i].addEventListener('load', function (ev) { hookFrame(ev.target.contentWindow); });
+                    hookFrame(inner[i].contentWindow);
+                }
+            } catch (err) { /* another site's page - can't reach in, that's fine */ }
+        }
+        viewport.addEventListener('load', function () { hookFrame(viewport.contentWindow); });
+        window.iodineHookFrame = hookFrame;
+
+        /* Settings page calls this after saving. */
+        window.iodineApplySettings = function () {
+            settings = load('settings', {});
+            applyCloak();
+            updateClock();
+        };
+        applyCloak();
+
+        /* ------------------------------------------------------------ upgrade prompt */
+        var up = document.getElementById('upgrade');
+        var goLink = document.getElementById('upgrade-go');
+        var never = document.getElementById('upgrade-never');
+        goLink.href = IODINE3_URL;
+
+        function showUpgrade() {
+            never.checked = !!load('hideUpgrade', false);
+            up.classList.add('show');
+            setTimeout(function () { goLink.focus(); }, 50);
+        }
+        function closeUpgrade() {
+            up.classList.remove('show');
+            save('hideUpgrade', never.checked);
+        }
+        window.iodineShowUpgrade = showUpgrade;
+
+        document.getElementById('upgrade-x').addEventListener('click', closeUpgrade);
+        document.getElementById('upgrade-later').addEventListener('click', closeUpgrade);
+        goLink.addEventListener('click', function () { setTimeout(closeUpgrade, 100); });
+        up.addEventListener('click', function (e) { if (e.target === up) closeUpgrade(); });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && up.classList.contains('show')) closeUpgrade();
+        });
+        document.getElementById('upgrade-pill').addEventListener('click', showUpgrade);
+
+        if (!load('hideUpgrade', false)) setTimeout(showUpgrade, 700);
+    })();
+    </script>
+</body>
+</html>

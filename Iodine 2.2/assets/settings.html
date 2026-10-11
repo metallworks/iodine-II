@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Settings</title>
+<link rel="stylesheet" href="app.css">
+<style>
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-top: 26px; max-width: calc(100% - 290px); }
+  .card { padding: 18px; }
+  .card h2 { margin: 0 0 4px; font-weight: normal; font-size: 20px; }
+  .card h2 b { color: var(--accent); font-weight: normal; }
+  .card .why { font-size: 13px; color: rgba(255,255,255,.7); margin: 0 0 14px; line-height: 1.4; }
+  .row { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+  .row label { font-size: 13px; color: rgba(255,255,255,.8); min-width: 70px; }
+  .row .field { flex: 1; min-width: 140px; }
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; }
+  .presets .btn { font-size: 12.5px; padding: 6px 10px; }
+  .keybox { width: 110px; text-align: center; cursor: pointer; }
+  .keybox.listening { border-color: var(--accent); }
+  .toggle { display: flex; align-items: center; gap: 10px; font-size: 14px; cursor: pointer; margin-top: 6px; }
+  .toggle input { width: 18px; height: 18px; accent-color: var(--accent); }
+  .saved { font-size: 12.5px; color: #8ff0a4; min-height: 16px; margin-top: 8px; }
+  @media (max-width: 800px) { .cards { max-width: none; } }
+</style>
+</head>
+<body>
+<img class="top-right-center" src="Iodine.png" alt="">
+<div class="bg-img"></div>
+<div class="content">
+  <h1>Settings</h1>
+  <p>Saved in this browser only, and they change as soon as you click.</p>
+
+  <div class="cards">
+    <section class="card panel">
+      <h2>Tab <b>disguise</b></h2>
+      <p class="why">Changes this tab's name and swaps the icon for a plain grey page.</p>
+      <div class="presets" id="presets">
+        <button class="btn" data-t="">Off</button>
+        <button class="btn" data-t="Home">Home</button>
+        <button class="btn" data-t="Untitled document">Untitled document</button>
+        <button class="btn" data-t="My Drive">My Drive</button>
+        <button class="btn" data-t="Classes">Classes</button>
+        <button class="btn" data-t="Assignments">Assignments</button>
+      </div>
+      <div class="row">
+        <label for="title">Custom</label>
+        <input class="field" id="title" placeholder="Type any tab name" maxlength="60">
+      </div>
+      <div class="saved" id="saved-cloak"></div>
+    </section>
+
+    <section class="card panel">
+      <h2>Panic <b>key</b></h2>
+      <p class="why">Press one key and this tab jumps straight to another site. It works while you're inside a game too.</p>
+      <div class="row">
+        <label>Key</label>
+        <input class="field keybox" id="key" readonly placeholder="click, then press">
+        <button class="btn" id="key-clear">Turn off</button>
+      </div>
+      <div class="row">
+        <label for="url">Goes to</label>
+        <input class="field" id="url" placeholder="https://classroom.google.com">
+      </div>
+      <div class="saved" id="saved-panic"></div>
+    </section>
+
+    <section class="card panel">
+      <h2>Open in <b>about:blank</b></h2>
+      <p class="why">Opens Iodine inside a blank tab. The address bar shows "about:blank" and this page won't show up in your history.</p>
+      <button class="btn primary" id="blank">Open in about:blank</button>
+      <div class="saved" id="saved-blank"></div>
+    </section>
+
+    <section class="card panel">
+      <h2><b>Clock</b> and reminders</h2>
+      <p class="why">Little things.</p>
+      <label class="toggle"><input type="checkbox" id="clock24"> 24-hour clock</label>
+      <label class="toggle"><input type="checkbox" id="upgrade-remind"> Remind me about Iodine 3 when I open Iodine</label>
+      <div class="row"><button class="btn" id="show-upgrade">Show the Iodine 3 message now</button></div>
+    </section>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  function load(key, fallback) {
+    try { var r = localStorage.getItem('iodine22_' + key); return r === null ? fallback : JSON.parse(r); }
+    catch (e) { return fallback; }
+  }
+  function save(key, v) { try { localStorage.setItem('iodine22_' + key, JSON.stringify(v)); } catch (e) {} }
+
+  var s = load('settings', {});
+  var $ = function (id) { return document.getElementById(id); };
+
+  function commit(note, where) {
+    save('settings', s);
+    if (parent && parent.iodineApplySettings) parent.iodineApplySettings();
+    if (where) {
+      $(where).textContent = note || 'Saved.';
+      clearTimeout(commit[where]);
+      commit[where] = setTimeout(function () { $(where).textContent = ''; }, 2200);
+    }
+  }
+
+  /* tab disguise */
+  $('title').value = s.cloakTitle || '';
+  Array.prototype.forEach.call(document.querySelectorAll('#presets .btn'), function (b) {
+    b.addEventListener('click', function () {
+      s.cloakTitle = b.getAttribute('data-t');
+      $('title').value = s.cloakTitle;
+      commit(s.cloakTitle ? 'This tab is now called "' + s.cloakTitle + '".' : 'Disguise off.', 'saved-cloak');
+    });
+  });
+  $('title').addEventListener('input', function () {
+    s.cloakTitle = $('title').value.trim();
+    commit(s.cloakTitle ? 'Saved.' : 'Disguise off.', 'saved-cloak');
+  });
+
+  /* panic key */
+  var keyBox = $('key');
+  function showKey() { keyBox.value = s.panicKey ? (s.panicKey === ' ' ? 'Space' : s.panicKey) : ''; }
+  showKey();
+  $('url').value = s.panicUrl || '';
+  keyBox.addEventListener('focus', function () { keyBox.classList.add('listening'); keyBox.placeholder = 'press a key...'; });
+  keyBox.addEventListener('blur', function () { keyBox.classList.remove('listening'); keyBox.placeholder = 'click, then press'; });
+  keyBox.addEventListener('keydown', function (e) {
+    e.preventDefault();
+    if (e.key === 'Tab' || e.key === 'Shift' || e.key === 'Control' || e.key === 'Alt' || e.key === 'Meta') return;
+    if (e.key === 'Escape') { keyBox.blur(); return; }
+    s.panicKey = e.key;
+    showKey();
+    keyBox.blur();
+    commit('Panic key is now ' + keyBox.value + '.', 'saved-panic');
+  });
+  $('key-clear').addEventListener('click', function () {
+    s.panicKey = '';
+    showKey();
+    commit('Panic key off.', 'saved-panic');
+  });
+  $('url').addEventListener('change', function () {
+    var v = $('url').value.trim();
+    if (v && !/^https?:\/\//i.test(v)) v = 'https://' + v;
+    $('url').value = v;
+    s.panicUrl = v;
+    commit('Saved.', 'saved-panic');
+  });
+
+  /* about:blank */
+  $('blank').addEventListener('click', function () {
+    var w = window.open('about:blank', '_blank');
+    if (!w) { $('saved-blank').textContent = 'Your browser blocked the new tab. Allow pop-ups for this site and try again.'; return; }
+    var site = (parent && parent !== window ? parent.location.href : location.href).split('#')[0];
+    w.document.title = s.cloakTitle || 'about:blank';
+    var f = w.document.createElement('iframe');
+    f.src = site;
+    f.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;border:0;margin:0';
+    f.allow = 'fullscreen; autoplay; clipboard-write; gamepad';
+    w.document.body.style.margin = '0';
+    w.document.body.appendChild(f);
+    $('saved-blank').textContent = 'Opened. You can close this tab now.';
+  });
+
+  /* clock + reminder */
+  $('clock24').checked = !!s.clock24;
+  $('clock24').addEventListener('change', function () { s.clock24 = $('clock24').checked; commit(); });
+  $('upgrade-remind').checked = !load('hideUpgrade', false);
+  $('upgrade-remind').addEventListener('change', function () { save('hideUpgrade', !$('upgrade-remind').checked); });
+  $('show-upgrade').addEventListener('click', function () {
+    if (parent && parent.iodineShowUpgrade) parent.iodineShowUpgrade();
+  });
+})();
+</script>
+</body>
+</html>
